@@ -8,7 +8,8 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.openapi.utils import get_openapi
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,8 +34,20 @@ logger = logging.getLogger(__name__)
 # ─── FastAPI App ─────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Happ Decrypt API",
-    description="API that decrypts happ:// encrypted subscription links.",
+    description=(
+        "## Overview\n"
+        "A free public API for decrypting `happ://` encrypted subscription links.\n\n"
+        "## Quick Start\n"
+        "Send a `POST` request to `/decrypt` with your encrypted link in the request body.\n\n"
+        "## Supported Formats\n"
+        "- `happ://crypt/...`\n"
+        "- `happ://crypt1/...` through `happ://crypt5/...`\n\n"
+        "## Need Help?\n"
+        "Use the interactive **Try it out** button below to test the API directly from this page."
+    ),
     version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -47,14 +60,45 @@ app.add_middleware(
 
 # ─── Models ──────────────────────────────────────────────────────────────────
 class DecryptRequest(BaseModel):
-    link: str
+    link: str = Field(
+        ...,
+        description="The encrypted happ:// subscription link to decrypt.",
+        json_schema_extra={"examples": ["happ://crypt/your-encrypted-link-here"]},
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {"link": "happ://crypt/your-encrypted-link-here"}
+            ]
+        }
+    }
 
 
 class DecryptResponse(BaseModel):
-    success: bool
-    original_link: str
-    decrypted_url: Optional[str] = None
-    error: Optional[str] = None
+    success: bool = Field(description="Whether the decryption was successful.")
+    original_link: str = Field(description="The original encrypted link that was submitted.")
+    decrypted_url: Optional[str] = Field(default=None, description="The decrypted subscription URL. Only present on success.")
+    error: Optional[str] = Field(default=None, description="Error message. Only present on failure.")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "success": True,
+                    "original_link": "happ://crypt/example-link",
+                    "decrypted_url": "https://example.com/subscription/abc123",
+                    "error": None,
+                },
+                {
+                    "success": False,
+                    "original_link": "happ://crypt/invalid-link",
+                    "decrypted_url": None,
+                    "error": "Decryption failed. The link may be invalid or expired.",
+                },
+            ]
+        }
+    }
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -96,7 +140,7 @@ async def decrypt_link(happ_link: str) -> dict:
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
-@app.get("/")
+@app.get("/", summary="API Info", description="Returns basic information about the API and its available endpoints.")
 async def root():
     return {
         "service": "Happ Decrypt API",
@@ -104,24 +148,29 @@ async def root():
         "endpoints": {
             "POST /decrypt": "Decrypt a happ:// subscription link",
             "GET /health": "Health check",
+            "GET /docs": "Interactive API documentation",
         },
     }
 
 
-@app.get("/health")
+@app.get("/health", summary="Health Check", description="Returns the current status of the API and a UTC timestamp.")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 
-@app.post("/decrypt", response_model=DecryptResponse)
+@app.post(
+    "/decrypt",
+    response_model=DecryptResponse,
+    summary="Decrypt Subscription Link",
+    description=(
+        "Decrypt a `happ://` encrypted subscription link.\n\n"
+        "**How to use:**\n"
+        "1. Send a JSON body with the `link` field containing your encrypted `happ://crypt/...` link\n"
+        "2. The API will decrypt it and return the original subscription URL\n\n"
+        "**Supported formats:** `happ://crypt/`, `happ://crypt1/` through `happ://crypt5/`"
+    ),
+)
 async def decrypt(req: DecryptRequest):
-    """
-    Decrypt a happ:// subscription link.
-
-    - Validates the link format
-    - Decrypts the subscription
-    - Returns the decrypted URL to the caller
-    """
     # Validate link format
     match = HAPP_PATTERN.search(req.link)
     if not match:
