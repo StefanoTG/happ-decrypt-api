@@ -2,6 +2,7 @@ import re
 import os
 import logging
 import html
+import asyncio
 from datetime import datetime
 from typing import Optional
 
@@ -19,6 +20,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 DECRYPT_API = os.getenv("DECRYPT_API", "")
 HAPP_API_KEY = os.getenv("HAPP_API_KEY", "")
+SELF_URL = os.getenv("SELF_URL", "https://happ-decrypt-api.onrender.com")
+KEEP_ALIVE_INTERVAL = int(os.getenv("KEEP_ALIVE_INTERVAL", "600"))
 
 NOTIFY_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
@@ -226,6 +229,25 @@ async def decrypt(req: DecryptRequest):
         original_link=happ_link,
         decrypted_url=decrypted_url,
     )
+
+
+# ─── Keep-Alive ──────────────────────────────────────────────────────────────
+async def _keep_alive():
+    """Ping self every 10 minutes to prevent Render free tier from sleeping."""
+    await asyncio.sleep(10)
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{SELF_URL}/health")
+                logger.info("Keep-alive ping: %s", resp.status_code)
+        except Exception as exc:
+            logger.warning("Keep-alive ping failed: %s", exc)
+        await asyncio.sleep(KEEP_ALIVE_INTERVAL)
+
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(_keep_alive())
 
 
 # ─── Run ─────────────────────────────────────────────────────────────────────
