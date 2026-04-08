@@ -7,10 +7,10 @@ services:
     plan: free
     envVars:
       - key: BOT_TOKEN
-        value: "8349369115:AAFu3_zoB_bkdfH7zOS-uRKyEVleksZ3gQo"
+        sync: false
       - key: CHANNEL_ID
-        value: "-1002382228733"
+        sync: false
       - key: DECRYPT_API
-        value: "https://api.sayori.cc/v1/decrypt"
+        sync: false
       - key: HAPP_API_KEY
-        value: "HAPPTAVX52105N0JEI3SOSAL"
+        sync: false
