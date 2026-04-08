@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: happ-decrypt-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: BOT_TOKEN
+        value: "8349369115:AAFu3_zoB_bkdfH7zOS-uRKyEVleksZ3gQo"
+      - key: CHANNEL_ID
+        value: "-1002382228733"
+      - key: DECRYPT_API
+        value: "https://api.sayori.cc/v1/decrypt"
+      - key: HAPP_API_KEY
+        value: "HAPPTAVX52105N0JEI3SOSAL"
