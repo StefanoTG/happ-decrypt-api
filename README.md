@@ -25,7 +25,7 @@ Public API that decrypts `happ://` subscription links and forwards results to yo
 ### Example (curl)
 
 ```bash
-curl -X POST https://YOUR-URL.onrender.com/decrypt \
+curl -X POST https://api.helpshift.org/decrypt \
   -H "Content-Type: application/json" \
   -d '{"link": "happ://crypt/your-link-here"}'
 ```
